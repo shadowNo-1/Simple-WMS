@@ -6,23 +6,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/components/ui/use-toast"
 import { Icons } from "@/components/icons"
 import { useTranslation } from "@/lib/i18n"
-
-// Mock data - in a real app you would fetch this from an API
-const mockProducts = [
-  { id: "1", code: "P001", name: "笔记本电脑", category: "电子产品", quantity: 25 },
-  { id: "2", code: "P002", name: "办公桌", category: "家具", quantity: 10 },
-  { id: "3", code: "P003", name: "打印机", category: "办公设备", quantity: 5 },
-  { id: "4", code: "P004", name: "手机", category: "电子产品", quantity: 50 },
-  { id: "5", code: "P005", name: "键盘", category: "电子产品", quantity: 30 },
-]
+import { useDb } from "@/lib/db"
 
 export default function ScanBarcodePage() {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const { getAllProducts } = useDb()
   const [isScanning, setIsScanning] = useState(false)
-  const [scannedProduct, setScannedProduct] = useState<(typeof mockProducts)[0] | null>(null)
+  const [scannedProduct, setScannedProduct] = useState<any | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  const products = getAllProducts()
 
   // Simulate barcode scanning
   const startScanning = async () => {
@@ -34,7 +29,7 @@ export default function ScanBarcodePage() {
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
       // Pick a random product from the mock data
-      const randomProduct = mockProducts[Math.floor(Math.random() * mockProducts.length)]
+      const randomProduct = products[Math.floor(Math.random() * products.length)]
       setScannedProduct(randomProduct)
 
       toast({
@@ -96,7 +91,11 @@ export default function ScanBarcodePage() {
   }, [isScanning])
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">{t("scanBarcode")}</h1>
+      </div>
+
       <Card className="max-w-md mx-auto">
         <CardHeader>
           <CardTitle>{t("scanBarcode")}</CardTitle>

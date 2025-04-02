@@ -12,19 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { Icons } from "@/components/icons"
 import { useTranslation } from "@/lib/i18n"
-
-// Mock data - in a real app you would fetch this from an API
-const mockProducts = [
-  { id: "1", code: "P001", name: "笔记本电脑" },
-  { id: "2", code: "P002", name: "办公桌" },
-  { id: "3", code: "P003", name: "打印机" },
-  { id: "4", code: "P004", name: "手机" },
-  { id: "5", code: "P005", name: "键盘" },
-]
+import { useDb } from "@/lib/db"
 
 export default function GenerateBarcodePage() {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const { getAllProducts } = useDb()
   const [barcodeType, setBarcodeType] = useState("barcode")
   const [isLoading, setIsLoading] = useState(false)
   const [barcodeImageUrl, setBarcodeImageUrl] = useState("")
@@ -33,6 +26,8 @@ export default function GenerateBarcodePage() {
     quantity: "1",
     customText: "",
   })
+
+  const products = getAllProducts()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -51,7 +46,7 @@ export default function GenerateBarcodePage() {
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       // Using placeholder SVG for demonstration
-      const selectedProduct = mockProducts.find((p) => p.id === formData.productId)
+      const selectedProduct = products.find((p) => p.id === formData.productId)
       const text = selectedProduct ? `${selectedProduct.code}-${selectedProduct.name}` : formData.customText
 
       // Create a fake barcode URL - in a real app, this would be a generated image
@@ -91,7 +86,11 @@ export default function GenerateBarcodePage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">{t("generateBarcode")}</h1>
+      </div>
+
       <Card className="max-w-md mx-auto">
         <CardHeader>
           <CardTitle>{t("generateBarcode")}</CardTitle>
@@ -113,7 +112,7 @@ export default function GenerateBarcodePage() {
                       <SelectValue placeholder="选择产品" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockProducts.map((product) => (
+                      {products.map((product) => (
                         <SelectItem key={product.id} value={product.id}>
                           {product.name} ({product.code})
                         </SelectItem>
@@ -157,7 +156,7 @@ export default function GenerateBarcodePage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="custom">自定义文本</SelectItem>
-                      {mockProducts.map((product) => (
+                      {products.map((product) => (
                         <SelectItem key={product.id} value={product.id}>
                           {product.name} ({product.code})
                         </SelectItem>

@@ -18,33 +18,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-
-// Mock data - in a real app you would fetch this from an API
-const mockProducts = [
-  { id: "1", code: "P001", name: "笔记本电脑", category: "电子产品", expected: 25, actual: 0, status: "pending" },
-  { id: "2", code: "P002", name: "办公桌", category: "家具", expected: 10, actual: 0, status: "pending" },
-  { id: "3", code: "P003", name: "打印机", category: "办公设备", expected: 5, actual: 0, status: "pending" },
-  { id: "4", code: "P004", name: "手机", category: "电子产品", expected: 50, actual: 0, status: "pending" },
-  { id: "5", code: "P005", name: "键盘", category: "电子产品", expected: 30, actual: 0, status: "pending" },
-]
+import { useDb } from "@/lib/db"
 
 export default function InventoryCountPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const { getAllProducts } = useDb()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentCount, setCurrentCount] = useState<{
     id: string
     count: string
   }>({ id: "", count: "" })
   const [countItems, setCountItems] = useState(
-    mockProducts.map((product) => ({
+    getAllProducts().map((product) => ({
       ...product,
+      expected: product.quantity,
       actual: 0,
-      status: "pending",
+      status: "pending" as "pending" | "matched" | "shortage" | "surplus",
     })),
   )
   const [searchTerm, setSearchTerm] = useState("")
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const [reportUrl, setReportUrl] = useState<string | null>(null)
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false)
 
   const handleUpdateCount = (id: string, count: string) => {
     setCurrentCount({ id, count })
@@ -87,8 +83,36 @@ export default function InventoryCountPage() {
     setIsGeneratingReport(true)
 
     try {
-      // In a real application, you would generate and download a report
+      // 在实际应用中，这里会生成一个真实的报表
       await new Promise((resolve) => setTimeout(resolve, 1500))
+
+      // 创建CSV内容
+      const headers = ["产品代码", "产品名称", "类别", "系统数量", "实际数量", "差异", "状态"]
+      const rows = countItems.map((item) => [
+        item.code,
+        item.name,
+        item.category,
+        item.expected,
+        item.status === "pending" ? "-" : item.actual,
+        item.status === "pending" ? "-" : item.actual - item.expected,
+        item.status === "matched"
+          ? "匹配"
+          : item.status === "shortage"
+            ? "缺少"
+            : item.status === "surplus"
+              ? "盈余"
+              : "待盘点",
+      ])
+
+      const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n")
+
+      // 创建Blob并生成下载链接
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      setReportUrl(url)
+
+      // 显示报表对话框
+      setIsReportDialogOpen(true)
 
       toast({
         title: "报表已生成",
@@ -103,6 +127,25 @@ export default function InventoryCountPage() {
     } finally {
       setIsGeneratingReport(false)
     }
+  }
+
+  const downloadReport = () => {
+    if (!reportUrl) return
+
+    // 创建一个临时链接并触发下载
+    const link = document.createElement("a")
+    link.href = reportUrl
+    link.setAttribute("download", `inventory-count-report-${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(link)
+      URL.revokeObjectURL(reportUrl)
+    }, 100)
+
+    setIsReportDialogOpen(false)
   }
 
   const filteredItems = countItems.filter((item) =>
@@ -127,7 +170,24 @@ export default function InventoryCountPage() {
   const countComplete = countItems.every((item) => item.status !== "pending")
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">{t("inventoryCount")}</h1>
+        <Button onClick={handleGenerateReport} disabled={!countComplete || isGeneratingReport}>
+          {isGeneratingReport ? (
+            <>
+              <Icons.sun className="mr-2 h-4 w-4 animate-spin" />
+              正在生成...
+            </>
+          ) : (
+            <>
+              <Icons.clipboard className="mr-2 h-4 w-4" />
+              生成盘点报表
+            </>
+          )}
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
@@ -135,19 +195,6 @@ export default function InventoryCountPage() {
               <CardTitle>{t("inventoryCount")}</CardTitle>
               <CardDescription>盘点仓库中的物品并生成报表</CardDescription>
             </div>
-            <Button onClick={handleGenerateReport} disabled={!countComplete || isGeneratingReport}>
-              {isGeneratingReport ? (
-                <>
-                  <Icons.sun className="mr-2 h-4 w-4 animate-spin" />
-                  正在生成...
-                </>
-              ) : (
-                <>
-                  <Icons.clipboard className="mr-2 h-4 w-4" />
-                  生成盘点报表
-                </>
-              )}
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -246,6 +293,29 @@ export default function InventoryCountPage() {
               取消
             </Button>
             <Button onClick={handleSaveCount}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 报表下载对话框 */}
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>报表已生成</DialogTitle>
+            <DialogDescription>您的盘点报表已准备好下载</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 text-center">
+            <Icons.clipboard className="h-16 w-16 mx-auto text-primary mb-4" />
+            <p>报表包含所有盘点数据，包括产品信息、系统数量、实际数量和差异。</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReportDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={downloadReport}>
+              <Icons.arrowDown className="mr-2 h-4 w-4" />
+              下载报表
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

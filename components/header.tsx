@@ -17,12 +17,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useTranslation } from "@/lib/i18n"
 import { useAuth } from "@/lib/auth-context"
+import { useBranding } from "@/lib/branding-context"
 
 export default function Header() {
   const pathname = usePathname()
   const { user, logout, isLoading } = useAuth()
   const { t } = useTranslation()
   const [mounted, setMounted] = useState(false)
+  const { branding } = useBranding()
 
   useEffect(() => {
     setMounted(true)
@@ -47,37 +49,14 @@ export default function Header() {
       <div className="container flex h-16 items-center justify-between py-4">
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2">
-            <Icons.inventory className="h-6 w-6" />
-            <span className="font-bold">{t("appName")}</span>
+            {branding.icon ? (
+              <img src={branding.icon || "/placeholder.svg"} alt="Logo" className="h-6 w-6" />
+            ) : (
+              <Icons.inventory className="h-6 w-6" />
+            )}
+            <span className="font-bold">{branding.siteName || t("appName")}</span>
           </Link>
         </div>
-
-        <nav className="hidden md:flex items-center gap-6">
-          <Link
-            href="/inventory"
-            className={`text-sm font-medium transition-colors ${
-              pathname.startsWith("/inventory") ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`}
-          >
-            {t("inventory")}
-          </Link>
-          <Link
-            href="/barcodes"
-            className={`text-sm font-medium transition-colors ${
-              pathname.startsWith("/barcodes") ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`}
-          >
-            {t("barcodes")}
-          </Link>
-          <Link
-            href="/settings"
-            className={`text-sm font-medium transition-colors ${
-              pathname === "/settings" ? "text-primary" : "text-muted-foreground hover:text-primary"
-            }`}
-          >
-            {t("settings")}
-          </Link>
-        </nav>
 
         <div className="flex items-center gap-2">
           <ModeToggle />
