@@ -1,0 +1,156 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 插件系统相关模型
+model Plugin {
+  id          String    @id
+  name        String
+  description String?
+  version     String
+  enabled     Boolean   @default(true)
+  config      Json?     // 插件配置
+  dependencies String[] // 依赖的其他插件
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// 核心模型
+model User {
+  id            Int             @id @default(autoincrement())
+  username      String          @unique
+  password      String          // 存储哈希后的密码
+  name          String?
+  email         String?         @unique
+  role          String          @default("user") // admin, manager, user等
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  // 关联
+  transactions  Transaction[]
+  inventoryChecks InventoryCheck[]
+}
+
+// 产品模块
+model Product {
+  id            Int             @id @default(autoincrement())
+  sku           String          @unique
+  name          String
+  description   String?
+  category      String
+  price         Decimal?        @db.Decimal(10, 2)
+  cost          Decimal?        @db.Decimal(10, 2)
+  minQuantity   Int             @default(0)
+  barcode       String?
+  weight        String?
+  dimensions    String?
+  supplier      String?
+  imageUrl      String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  // 关联
+  inventoryItems InventoryItem[]
+  transactionItems TransactionItem[]
+  checkItems     CheckItem[]
+}
+
+// 仓库模块
+model Warehouse {
+  id            Int             @id @default(autoincrement())
+  name          String
+  location      String
+  description   String?
+  manager       String?
+  contact       String?
+  status        String          @default("active")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  // 关联
+  inventoryItems InventoryItem[]
+}
+
+// 库存模块
+model InventoryItem {
+  id            Int             @id @default(autoincrement())
+  productId     Int
+  warehouseId   Int
+  location      String          // 库位
+  quantity      Int             @default(0)
+  status        String          @default("normal")
+  
+  // 关联
+  product       Product         @relation(fields: [productId], references: [id])
+  warehouse     Warehouse       @relation(fields: [warehouseId], references: [id])
+  
+  // 复合唯一索引确保每个产品在每个仓库的每个库位只有一条记录
+  @@unique([productId, warehouseId, location])
+}
+
+// 交易模块
+model Transaction {
+  id            Int             @id @default(autoincrement())
+  type          String          // "in" 或 "out"
+  reference     String?         // 参考号
+  source        String?         // 来源/去向
+  notes         String?
+  documentId    String          @unique // 单据编号
+  createdBy     Int?            // 操作人ID
+  createdAt     DateTime        @default(now())
+  
+  // 关联
+  items         TransactionItem[]
+  user          User?           @relation(fields: [createdBy], references: [id])
+}
+
+model TransactionItem {
+  id            Int             @id @default(autoincrement())
+  transactionId Int
+  productId     Int
+  quantity      Int
+  location      String          // 库位
+  productionDate DateTime?
+  expiryDate    DateTime?
+  
+  // 关联
+  transaction   Transaction     @relation(fields: [transactionId], references: [id])
+  product       Product         @relation(fields: [productId], references: [id])
+}
+
+// 盘点模块
+model InventoryCheck {
+  id            Int             @id @default(autoincrement())
+  name          String
+  type          String          // full, partial, cycle
+  status        String          @default("pending") // pending, in-progress, completed
+  createdBy     Int?
+  createdAt     DateTime        @default(now())
+  completedAt   DateTime?
+  
+  // 关联
+  items         CheckItem[]
+  user          User?           @relation(fields: [createdBy], references: [id])
+}
+
+model CheckItem {
+  id                Int             @id @default(autoincrement())
+  checkId           Int
+  productId         Int
+  location          String
+  expectedQuantity  Int
+  actualQuantity    Int
+  discrepancy       Int
+  notes             String?
+  
+  // 关联
+  check             InventoryCheck  @relation(fields: [checkId], references: [id])
+  product           Product         @relation(fields: [productId], references: [id])
+}
+
